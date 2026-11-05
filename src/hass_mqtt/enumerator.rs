@@ -209,9 +209,17 @@ pub async fn enumerate_entities_for_device(
             }
         }
 
-        if let Some(segments) = info.supports_segmented_rgb() {
+        let rgb_segments = info.supports_segmented_rgb();
+        if let Some(segments) = rgb_segments.clone() {
             for n in segments {
                 entities.add(DeviceLight::for_device(d, state, Some(n)).await?);
+            }
+        }
+        if let Some(segments) = info.supports_segmented_brightness_segments() {
+            for n in segments {
+                if !rgb_segments.as_ref().is_some_and(|r| r.contains(&n)) {
+                    entities.add(DeviceLight::for_device(d, state, Some(n)).await?);
+                }
             }
         }
     }

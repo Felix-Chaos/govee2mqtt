@@ -172,8 +172,20 @@ impl DeviceLight {
 
         let mut supported_color_modes = vec![];
 
-        if segment.is_some() || device.supports_rgb() {
+        let segment_supports_rgb = match segment {
+            Some(n) => device
+                .http_device_info
+                .as_ref()
+                .and_then(|info| info.supports_segmented_rgb())
+                .is_some_and(|r| r.contains(&n)),
+            None => false,
+        };
+
+        if segment_supports_rgb || (segment.is_none() && device.supports_rgb()) {
             supported_color_modes.push("rgb".to_string());
+        } else if segment.is_some() {
+            // Brightness-only segment
+            supported_color_modes.push("brightness".to_string());
         }
 
         let (min_mireds, max_mireds) = if segment.is_some() {

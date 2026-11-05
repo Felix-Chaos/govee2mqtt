@@ -705,7 +705,19 @@ impl HttpDeviceInfo {
 
     /// If supported, returns the number of segments
     pub fn supports_segmented_rgb(&self) -> Option<std::ops::Range<u32>> {
-        let cap = self.capability_by_instance("segmentedColorRgb")?;
+        self.segment_range("segmentedColorRgb")
+    }
+
+    /// If supported, returns the range of segments whose brightness
+    /// can be controlled. Some devices (eg: H2800) report more
+    /// segments here than for segmentedColorRgb; the additional
+    /// segments are brightness-only.
+    pub fn supports_segmented_brightness_segments(&self) -> Option<std::ops::Range<u32>> {
+        self.segment_range("segmentedBrightness")
+    }
+
+    fn segment_range(&self, instance: &str) -> Option<std::ops::Range<u32>> {
+        let cap = self.capability_by_instance(instance)?;
         let field = cap.struct_field_by_name("segment")?;
         match field.field_type {
             DeviceParameters::Array {
