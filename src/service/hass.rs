@@ -15,7 +15,8 @@ use async_channel::Receiver;
 use mosquitto_rs::router::{MqttRouter, Params, Payload, State};
 use mosquitto_rs::{Client, Event, QoS};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 const HASS_REGISTER_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(15);
@@ -354,11 +355,11 @@ fn segment_power_control() -> bool {
     }
 }
 
-type SegmentKey = (String, u32);
+/// The last non-zero brightness set for each (device id, segment)
+type SegmentBrightness = Mutex<HashMap<(String, u32), u8>>;
 
-fn segment_brightness_memory() -> &'static std::sync::Mutex<std::collections::HashMap<SegmentKey, u8>> {
-    static MEMORY: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<SegmentKey, u8>>> =
-        std::sync::OnceLock::new();
+fn segment_brightness_memory() -> &'static SegmentBrightness {
+    static MEMORY: OnceLock<SegmentBrightness> = OnceLock::new();
     MEMORY.get_or_init(Default::default)
 }
 
@@ -425,7 +426,10 @@ async fn mqtt_light_segment_command(
                 .set_segment_brightness(info, segment, brightness)
                 .await?;
             if brightness > 0 {
-                segment_brightness_memory().lock().unwrap().insert(key, brightness);
+                segment_brightness_memory()
+                    .lock()
+                    .unwrap()
+                    .insert(key, brightness);
             }
         } else if command.state == "OFF" && power_control {
             // Opt-in: emulate turning the segment off by setting its
