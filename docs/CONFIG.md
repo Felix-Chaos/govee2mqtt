@@ -66,3 +66,12 @@ You will also need to configure `govee2mqtt` to use the same broker:
 |`--mqtt-username`|`GOVEE_MQTT_USER`|`mqtt_username`|If your broker requires authentication, the username to use|
 |`--mqtt-password`|`GOVEE_MQTT_PASSWORD`|`mqtt_password`|If your broker requires authentication, the password to use|
 
+
+## Segment Lights
+
+Devices that support per-segment control via the Platform API have
+each segment exposed as a separate light entity.
+
+|CLI|ENV|AddOn|Purpose|
+|---|---|-----|-------|
+||`GOVEE_SEGMENT_POWER_CONTROL=true`|`segment_power_control`|Turning a segment light off sets its brightness to the minimum, and turning it on again restores the last brightness. Off by default, because turning off all lights in an area can then cause the device to briefly power up.|

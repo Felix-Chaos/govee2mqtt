@@ -188,9 +188,11 @@ impl DeviceLight {
             supported_color_modes.push("brightness".to_string());
         }
 
-        let (min_mireds, max_mireds) = if segment.is_some() {
+        let (min_mireds, max_mireds) = if segment.is_some() && !segment_supports_rgb {
             (None, None)
         } else if let Some((min, max)) = device.get_color_temperature_range() {
+            // For RGB segments, color temperature is emulated by
+            // converting it to an RGB value
             supported_color_modes.push("color_temp".to_string());
             // Note that min and max are swapped by the translation
             // from kelvin to mired

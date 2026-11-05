@@ -83,6 +83,10 @@ if bashio::config.has_value scan ; then
   export GOVEE_LAN_SCAN="$(bashio::config scan)"
 fi
 
+if bashio::config.has_value segment_power_control ; then
+  export GOVEE_SEGMENT_POWER_CONTROL="$(bashio::config segment_power_control)"
+fi
+
 if bashio::config.has_value temperature_scale ; then
   export GOVEE_TEMPERATURE_SCALE="$(bashio::config temperature_scale)"
 fi

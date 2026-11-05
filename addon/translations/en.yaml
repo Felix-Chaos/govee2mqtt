@@ -89,6 +89,13 @@ configuration:
       global broadcast address 255.255.255.255. To be honest, if
       multicast-UDP doesn't work, this isn't likely to work any
       better.
+  segment_power_control:
+    name: Allow turning individual segments on and off
+    description: >-
+      When enabled, turning off a segment light sets that segment's
+      brightness to its minimum, and turning it back on restores the
+      last brightness. This is off by default because turning off all
+      lights in an area can then cause the device to briefly power up.
 
 
 

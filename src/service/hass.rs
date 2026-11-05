@@ -344,6 +344,54 @@ async fn mqtt_light_command(
     Ok(())
 }
 
+/// When GOVEE_SEGMENT_POWER_CONTROL is truthy, turning a segment light
+/// off sets its brightness to the minimum, and turning it back on
+/// restores the last brightness that was set.
+fn segment_power_control() -> bool {
+    match opt_env_var::<String>("GOVEE_SEGMENT_POWER_CONTROL") {
+        Ok(Some(v)) => crate::lan_api::truthy(&v).unwrap_or(false),
+        _ => false,
+    }
+}
+
+type SegmentKey = (String, u32);
+
+fn segment_brightness_memory() -> &'static std::sync::Mutex<std::collections::HashMap<SegmentKey, u8>> {
+    static MEMORY: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<SegmentKey, u8>>> =
+        std::sync::OnceLock::new();
+    MEMORY.get_or_init(Default::default)
+}
+
+/// Approximate the RGB value of a black body at the given color
+/// temperature. Based on Tanner Helland's algorithm.
+pub fn kelvin_to_rgb(kelvin: u32) -> DeviceColor {
+    let temp = (kelvin.clamp(1000, 40000) as f64) / 100.0;
+
+    let r = if temp <= 66.0 {
+        255.0
+    } else {
+        329.698727446 * (temp - 60.0).powf(-0.1332047592)
+    };
+    let g = if temp <= 66.0 {
+        99.4708025861 * temp.ln() - 161.1195681661
+    } else {
+        288.1221695283 * (temp - 60.0).powf(-0.0755148492)
+    };
+    let b = if temp >= 66.0 {
+        255.0
+    } else if temp <= 19.0 {
+        0.0
+    } else {
+        138.5177312231 * (temp - 10.0).ln() - 305.0447927307
+    };
+
+    DeviceColor {
+        r: r.clamp(0.0, 255.0) as u8,
+        g: g.clamp(0.0, 255.0) as u8,
+        b: b.clamp(0.0, 255.0) as u8,
+    }
+}
+
 #[derive(Deserialize)]
 struct IdAndSeg {
     id: String,
@@ -369,7 +417,29 @@ async fn mqtt_light_segment_command(
 
         log::info!("Using Platform API to control {device} segment");
 
+        let power_control = segment_power_control();
+        let key = (device.id.to_string(), segment);
+
         if let Some(brightness) = command.brightness {
+            client
+                .set_segment_brightness(info, segment, brightness)
+                .await?;
+            if brightness > 0 {
+                segment_brightness_memory().lock().unwrap().insert(key, brightness);
+            }
+        } else if command.state == "OFF" && power_control {
+            // Opt-in: emulate turning the segment off by setting its
+            // brightness to its minimum. See GOVEE_SEGMENT_POWER_CONTROL.
+            client.set_segment_brightness(info, segment, 0).await?;
+        } else if command.state == "ON" && power_control {
+            // Restore the last brightness we set for this segment,
+            // in case it was previously turned off
+            let brightness = segment_brightness_memory()
+                .lock()
+                .unwrap()
+                .get(&key)
+                .copied()
+                .unwrap_or(100);
             client
                 .set_segment_brightness(info, segment, brightness)
                 .await?;
@@ -384,6 +454,13 @@ async fn mqtt_light_segment_command(
             // client.set_segment_brightness(&info, segment, 0).await?;
         }
         if let Some(color) = &command.color {
+            client
+                .set_segment_rgb(info, segment, color.r, color.g, color.b)
+                .await?;
+        } else if let Some(color_temp) = command.color_temp {
+            // There is no per-segment color temperature capability,
+            // so approximate it with an RGB value
+            let color = kelvin_to_rgb(mired_to_kelvin(color_temp));
             client
                 .set_segment_rgb(info, segment, color.r, color.g, color.b)
                 .await?;
